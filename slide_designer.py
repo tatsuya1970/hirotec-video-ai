@@ -610,14 +610,14 @@ def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
     # 背景をリサイズ
     img = bg.copy().resize((W, H), Image.LANCZOS)
 
-    # ダークオーバーレイ
-    overlay = Image.new("RGBA", (W, H), (5, 10, 25, 175))
+    # ダークオーバーレイ（薄めにして背景を見せる）
+    overlay = Image.new("RGBA", (W, H), (5, 10, 25, 100))
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     # ── ヘッダーエリア（半透明バー） ──
     header_h = 130
-    bar = Image.new("RGBA", (W, header_h), (10, 20, 50, 180))
+    bar = Image.new("RGBA", (W, header_h), (10, 20, 50, 140))
     img.paste(Image.new("RGB", (W, header_h), (10, 20, 50)),
               (0, 0), bar.split()[3])
     draw = ImageDraw.Draw(img)
@@ -644,8 +644,8 @@ def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
 
         for i, item in enumerate(items):
             cx = margin + i * (card_w + gap)
-            # 半透明カード背景
-            card_bg = Image.new("RGBA", (card_w, card_h), (20, 35, 65, 190))
+            # 半透明カード背景（薄めにして背景を透かす）
+            card_bg = Image.new("RGBA", (card_w, card_h), (20, 35, 65, 120))
             img.paste(Image.new("RGB", (card_w, card_h), (20, 35, 65)),
                       (cx, card_y), card_bg.split()[3])
             draw = ImageDraw.Draw(img)
@@ -713,18 +713,22 @@ def generate_slide_image(
     source_image: Image.Image = None,
     use_claude: bool = True,
     mode: str = "claude",  # "claude" | "gemini"
+    slide_index: int = 0,
 ) -> Image.Image:
     """
     mode="claude" : Claude でJSON生成 → PIL描画（グラデーション背景）
     mode="gemini" : Claude不使用 → Imagen 4.0 で背景画像生成 → PIL でテキスト上書き
+                    ※デバッグ用: slide_index==0 のみImagenを呼び出し、他はPIL背景
     """
     if mode == "gemini":
-        # Claude APIを呼ばずにシンプルなデータを作成
         data = _make_simple_data(title, narration, brand_colors or [])
-        bg, err = _generate_gemini_background(title, narration)
-        if bg:
-            return _overlay_text_on_bg(bg, data)
-        raise RuntimeError(f"Imagen背景画像生成失敗: {err}")
+        if slide_index == 0:
+            bg, err = _generate_gemini_background(title, narration)
+            if bg:
+                return _overlay_text_on_bg(bg, data)
+            raise RuntimeError(f"Imagen背景画像生成失敗: {err}")
+        # 2枚目以降はPIL描画（デバッグ用コスト節約）
+        return render_slide_pil(data)
 
     # Claude モード
     if not use_claude:

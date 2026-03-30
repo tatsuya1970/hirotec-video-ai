@@ -329,6 +329,7 @@ if run_pipeline:
                     source_image=s.get("image"),
                     use_claude=True,
                     mode=slide_mode,
+                    slide_index=i,
                 )
                 scripts[i]["image"] = new_img
             except Exception as e:
@@ -431,6 +432,7 @@ if "scripts" in st.session_state:
                             source_image=s.get("image"),
                             use_claude=True,
                             mode=slide_mode,
+                            slide_index=i,
                         )
                     except Exception as e:
                         errors.append(f"スライド {i+1}: {e}")
