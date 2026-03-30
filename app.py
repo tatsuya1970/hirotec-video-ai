@@ -308,11 +308,13 @@ if run_pipeline:
         )
     st.success(f"✅ {len(scripts)} スライドの台本を生成しました")
 
-    if anthropic_ok:
+    can_generate = (slide_mode == "claude" and anthropic_ok) or (slide_mode == "gemini" and gemini_ok)
+    if can_generate:
         design_ctx = st.session_state.get("design_context", {})
         ref_imgs = design_ctx.get("reference_images", [])
         brand_colors = design_ctx.get("brand_colors", [])
-        img_progress = st.progress(0, text="Claude でスライド画像を生成中...")
+        mode_label = "Imagen 4.0" if slide_mode == "gemini" else "Claude"
+        img_progress = st.progress(0, text=f"{mode_label} でスライド画像を生成中...")
         img_errors = []
         for i, s in enumerate(scripts):
             img_progress.progress(
@@ -335,9 +337,9 @@ if run_pipeline:
         if img_errors:
             st.warning("一部のスライド画像生成に失敗しました:\n" + "\n".join(img_errors))
         else:
-            st.success(f"✅ {len(scripts)} 枚のスライド画像を生成しました")
+            st.success(f"✅ {len(scripts)} 枚のスライド画像を生成しました（{mode_label}）")
     else:
-        st.info("💡 .env に `ANTHROPIC_API_KEY` を設定するとスライド画像も自動生成されます")
+        st.info("💡 APIキーを設定するとスライド画像も自動生成されます")
 
     slide_tmp_dir = tempfile.mkdtemp()
     st.session_state["slide_tmp_dir"] = slide_tmp_dir

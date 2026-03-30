@@ -677,6 +677,33 @@ def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
     return img.convert("RGB")
 
 
+def _make_simple_data(title: str, narration: str, brand_colors: list) -> dict:
+    """Claude APIを使わずにナレーションからシンプルなスライドデータを作成"""
+    sentences = [s.strip() for s in narration.replace("。", "。\n").split("\n") if s.strip()][:4]
+    items = []
+    for s in sentences:
+        if len(s) > 16:
+            items.append({"title": s[:16], "body": s[16:48]})
+        else:
+            items.append({"title": s, "body": ""})
+
+    accent = "#1e5cb3"
+    if brand_colors:
+        def _sat(h: str) -> float:
+            try:
+                r, g, b = int(h[1:3],16)/255, int(h[3:5],16)/255, int(h[5:7],16)/255
+                mx, mn = max(r,g,b), min(r,g,b)
+                return (mx-mn)/mx if mx > 0 else 0
+            except Exception:
+                return 0
+        best = max(brand_colors[:4], key=_sat)
+        if _sat(best) > 0.3:
+            accent = best
+
+    return {"title": title[:20], "subtitle": "", "tag": "", "accent": accent,
+            "items": items, "note": ""}
+
+
 def generate_slide_image(
     title: str,
     narration: str,
@@ -689,8 +716,17 @@ def generate_slide_image(
 ) -> Image.Image:
     """
     mode="claude" : Claude でJSON生成 → PIL描画（グラデーション背景）
-    mode="gemini" : Claude でJSON生成 → Gemini で背景画像生成 → PIL でテキスト上書き
+    mode="gemini" : Claude不使用 → Imagen 4.0 で背景画像生成 → PIL でテキスト上書き
     """
+    if mode == "gemini":
+        # Claude APIを呼ばずにシンプルなデータを作成
+        data = _make_simple_data(title, narration, brand_colors or [])
+        bg, err = _generate_gemini_background(title, narration)
+        if bg:
+            return _overlay_text_on_bg(bg, data)
+        raise RuntimeError(f"Imagen背景画像生成失敗: {err}")
+
+    # Claude モード
     if not use_claude:
         return source_image
 
@@ -710,11 +746,5 @@ def generate_slide_image(
         best_accent = max(brand_colors[:4], key=saturation)
         if saturation(best_accent) > 0.3:
             data["accent"] = best_accent
-
-    if mode == "gemini":
-        bg, err = _generate_gemini_background(title, narration)
-        if bg:
-            return _overlay_text_on_bg(bg, data)
-        raise RuntimeError(f"Gemini背景画像生成失敗: {err}")
 
     return render_slide_pil(data)
