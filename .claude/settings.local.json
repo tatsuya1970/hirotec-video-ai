@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip show:*)",
+      "Bash(streamlit run:*)",
+      "Bash(ls -la /Users/tatsuya1970/projects/hirotec-video-ai/.env*)",
+      "Bash(pkill -f \"streamlit run app.py\")",
+      "WebFetch(domain:docs.heygen.com)",
+      "WebSearch",
+      "Bash(pip install:*)",
+      "Bash(python -c \"from playwright.sync_api import sync_playwright; p = sync_playwright\\(\\).start\\(\\); b = p.chromium.launch\\(\\); b.close\\(\\); p.stop\\(\\); print\\(''''OK''''\\)\")",
+      "Bash(python -c \"import fitz; print\\(''''fitz OK''''\\)\")",
+      "Bash(python -c \"import fitz; print\\(''fitz OK''\\)\")",
+      "Bash(python:*)",
+      "WebFetch(domain:www.hirotec.co.jp)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}
