@@ -722,13 +722,10 @@ def generate_slide_image(
     """
     if mode == "gemini":
         data = _make_simple_data(title, narration, brand_colors or [])
-        if slide_index == 0:
-            bg, err = _generate_gemini_background(title, narration)
-            if bg:
-                return _overlay_text_on_bg(bg, data)
-            raise RuntimeError(f"Imagen背景画像生成失敗: {err}")
-        # 2枚目以降はPIL描画（デバッグ用コスト節約）
-        return render_slide_pil(data)
+        bg, err = _generate_gemini_background(title, narration)
+        if bg:
+            return _overlay_text_on_bg(bg, data)
+        raise RuntimeError(f"Imagen背景画像生成失敗: {err}")
 
     # Claude モード
     if not use_claude:
