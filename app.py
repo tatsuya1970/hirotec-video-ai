@@ -156,6 +156,16 @@ with st.sidebar:
                 st.caption(hex_color)
 
     # Gemini接続テスト
+    if gemini_ok and st.button("🔬 Geminiモデル一覧", use_container_width=True):
+        import os as _os
+        try:
+            from google import genai as _genai
+            _client = _genai.Client(api_key=_os.getenv("GEMINI_API_KEY"))
+            models = [m.name for m in _client.models.list() if "generat" in m.name.lower()]
+            st.caption("\n".join(models[:20]))
+        except Exception as e:
+            st.error(str(e))
+
     if gemini_ok and st.button("🔬 Gemini接続テスト", use_container_width=True):
         with st.spinner("Gemini APIをテスト中..."):
             from slide_designer import _generate_gemini_background
