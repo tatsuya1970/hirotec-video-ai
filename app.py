@@ -122,14 +122,14 @@ with st.sidebar:
     gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
     slide_mode_options = ["Claude（グラデーション背景）"]
     if gemini_ok:
-        slide_mode_options.append("Gemini + PIL（AI背景画像）")
+        slide_mode_options.append("Imagen 4.0 + PIL（AI背景画像）")
     slide_mode_label = st.selectbox(
         "スライド画像生成モード",
         slide_mode_options,
         index=0,
         help="GeminiモードはGEMINI_API_KEYが必要です"
     )
-    slide_mode = "gemini" if "Gemini" in slide_mode_label else "claude"
+    slide_mode = "gemini" if "Imagen" in slide_mode_label else "claude"
 
     st.divider()
 
@@ -413,7 +413,7 @@ if "scripts" in st.session_state:
         # ────────────────────────────────────────
         action_col1, action_col2, action_col3 = st.columns(3)
         with action_col1:
-            regen_label = "🎨 全スライドの画像を再生成（Gemini + PIL）" if slide_mode == "gemini" else "🎨 全スライドの画像を再生成（Claude）"
+            regen_label = "🎨 全スライドの画像を再生成（Imagen 4.0 + PIL）" if slide_mode == "gemini" else "🎨 全スライドの画像を再生成（Claude）"
             if st.button(regen_label, use_container_width=True, key="btn_gen_all_images"):
                 design_ctx = st.session_state.get("design_context", {})
                 ref_imgs = design_ctx.get("reference_images", [])

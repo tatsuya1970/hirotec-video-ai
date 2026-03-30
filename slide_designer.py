@@ -557,7 +557,7 @@ def render_slide_pil(data: dict) -> Image.Image:
 
 def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image | None, str]:
     """
-    Gemini でスライド背景画像（テキストなし）を生成する。
+    Imagen 4.0 でスライド背景画像（テキストなし）を生成する。
     戻り値: (Image or None, error_message)
     """
     api_key = os.getenv("GEMINI_API_KEY", "")
@@ -576,18 +576,18 @@ def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image
             f"wide cinematic 16:9 composition. "
             f"CRITICAL: absolutely NO text, NO letters, NO words anywhere in the image."
         )
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-exp",
-            contents=prompt,
-            config=gtypes.GenerateContentConfig(
-                response_modalities=["TEXT", "IMAGE"],
+        response = client.models.generate_images(
+            model="imagen-4.0-fast-generate-001",
+            prompt=prompt,
+            config=gtypes.GenerateImagesConfig(
+                number_of_images=1,
+                aspect_ratio="16:9",
             ),
         )
-        for part in response.candidates[0].content.parts:
-            if hasattr(part, "inline_data") and part.inline_data:
-                img = Image.open(io.BytesIO(part.inline_data.data)).convert("RGB")
-                return img.resize((SLIDE_W, SLIDE_H), Image.LANCZOS), ""
-        return None, "Gemini APIからの応答に画像データが含まれていませんでした"
+        if response.generated_images:
+            img = Image.open(io.BytesIO(response.generated_images[0].image.image_bytes)).convert("RGB")
+            return img.resize((SLIDE_W, SLIDE_H), Image.LANCZOS), ""
+        return None, "Imagen APIからの応答に画像データが含まれていませんでした"
     except Exception as e:
         return None, str(e)
 
