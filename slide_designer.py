@@ -577,7 +577,7 @@ def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image
             f"CRITICAL: absolutely NO text, NO letters, NO words anywhere in the image."
         )
         response = client.models.generate_content(
-            model="gemini-2.0-flash-preview-image-generation",
+            model="gemini-2.0-flash-exp",
             contents=prompt,
             config=gtypes.GenerateContentConfig(
                 response_modalities=["TEXT", "IMAGE"],
