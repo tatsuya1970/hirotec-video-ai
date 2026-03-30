@@ -155,6 +155,17 @@ with st.sidebar:
                 )
                 st.caption(hex_color)
 
+    # Gemini接続テスト
+    if gemini_ok and st.button("🔬 Gemini接続テスト", use_container_width=True):
+        with st.spinner("Gemini APIをテスト中..."):
+            from slide_designer import _generate_gemini_background
+            test_img, test_err = _generate_gemini_background("テスト", "製造業の研修スライドです")
+        if test_img:
+            st.success("✅ Gemini画像生成成功！")
+            st.image(test_img, use_container_width=True)
+        else:
+            st.error(f"❌ Geminiエラー:\n{test_err}")
+
     st.divider()
     st.markdown("**使い方**")
     st.markdown("""

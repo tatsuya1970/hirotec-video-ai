@@ -580,7 +580,7 @@ def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image
             model="gemini-2.0-flash-preview-image-generation",
             contents=prompt,
             config=gtypes.GenerateContentConfig(
-                response_modalities=["IMAGE"],
+                response_modalities=["TEXT", "IMAGE"],
             ),
         )
         for part in response.candidates[0].content.parts:
