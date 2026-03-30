@@ -555,14 +555,14 @@ def render_slide_pil(data: dict) -> Image.Image:
     return img.convert("RGB")
 
 
-def _generate_gemini_background(title: str, narration: str) -> Image.Image | None:
+def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image | None, str]:
     """
     Gemini でスライド背景画像（テキストなし）を生成する。
-    失敗時は None を返す。
+    戻り値: (Image or None, error_message)
     """
     api_key = os.getenv("GEMINI_API_KEY", "")
     if not api_key:
-        return None
+        return None, "GEMINI_API_KEY が設定されていません"
     try:
         from google import genai
         from google.genai import types as gtypes
@@ -586,10 +586,10 @@ def _generate_gemini_background(title: str, narration: str) -> Image.Image | Non
         for part in response.candidates[0].content.parts:
             if hasattr(part, "inline_data") and part.inline_data:
                 img = Image.open(io.BytesIO(part.inline_data.data)).convert("RGB")
-                return img.resize((SLIDE_W, SLIDE_H), Image.LANCZOS)
-    except Exception:
-        pass
-    return None
+                return img.resize((SLIDE_W, SLIDE_H), Image.LANCZOS), ""
+        return None, "Gemini APIからの応答に画像データが含まれていませんでした"
+    except Exception as e:
+        return None, str(e)
 
 
 def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
@@ -712,9 +712,9 @@ def generate_slide_image(
             data["accent"] = best_accent
 
     if mode == "gemini":
-        bg = _generate_gemini_background(title, narration)
+        bg, err = _generate_gemini_background(title, narration)
         if bg:
             return _overlay_text_on_bg(bg, data)
-        # Gemini失敗時はPILにフォールバック
+        raise RuntimeError(f"Gemini背景画像生成失敗: {err}")
 
     return render_slide_pil(data)
