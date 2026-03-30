@@ -395,24 +395,149 @@ def generate_slide_json(
     return json.loads(raw)
 
 
-def render_html_to_image(html: str) -> Image.Image:
-    """Playwright で HTML を PNG にレンダリングする"""
-    from playwright.sync_api import sync_playwright
+def _hex_to_rgb(hex_color: str) -> tuple:
+    hex_color = hex_color.lstrip("#")
+    return tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
 
-    with tempfile.NamedTemporaryFile(suffix=".html", delete=False, mode="w", encoding="utf-8") as f:
-        f.write(html)
-        html_path = f.name
-    try:
-        with sync_playwright() as p:
-            browser = p.chromium.launch()
-            page = browser.new_page(viewport={"width": SLIDE_W, "height": SLIDE_H})
-            page.goto(f"file://{html_path}")
-            page.wait_for_timeout(400)
-            png_bytes = page.screenshot(clip={"x": 0, "y": 0, "width": SLIDE_W, "height": SLIDE_H})
-            browser.close()
-    finally:
-        os.unlink(html_path)
-    return Image.open(io.BytesIO(png_bytes)).convert("RGB")
+
+def _get_font(size: int, bold: bool = False):
+    """日本語対応フォントを取得（なければデフォルト）"""
+    from PIL import ImageFont
+    candidates = [
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else
+        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+        "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc" if bold else
+        "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+    ]
+    for path in candidates:
+        try:
+            return ImageFont.truetype(path, size)
+        except Exception:
+            continue
+    return ImageFont.load_default()
+
+
+def _wrap_text(text: str, font, max_width: int, draw) -> list[str]:
+    """テキストを指定幅で折り返す"""
+    lines = []
+    for paragraph in text.split("\n"):
+        words = list(paragraph)
+        line = ""
+        for ch in words:
+            test = line + ch
+            bbox = draw.textbbox((0, 0), test, font=font)
+            if bbox[2] - bbox[0] > max_width and line:
+                lines.append(line)
+                line = ch
+            else:
+                line = test
+        if line:
+            lines.append(line)
+    return lines
+
+
+def render_slide_pil(data: dict) -> Image.Image:
+    """PIL でスライドを直接描画する（外部ブラウザ不要）"""
+    from PIL import ImageDraw
+
+    W, H = SLIDE_W, SLIDE_H
+    accent_hex = data.get("accent", "#1e5cb3")
+    accent = _hex_to_rgb(accent_hex)
+    title_text = data.get("title", "")
+    subtitle_text = data.get("subtitle", "")
+    items = data.get("items", [])
+    tag_text = data.get("tag", "")
+    note_text = data.get("note", "")
+
+    # ── 背景グラデーション ──
+    img = Image.new("RGB", (W, H))
+    draw = ImageDraw.Draw(img)
+    bg_top = (16, 26, 54)
+    bg_bot = (10, 18, 40)
+    for y in range(H):
+        r = int(bg_top[0] + (bg_bot[0] - bg_top[0]) * y / H)
+        g = int(bg_top[1] + (bg_bot[1] - bg_top[1]) * y / H)
+        b = int(bg_top[2] + (bg_bot[2] - bg_top[2]) * y / H)
+        draw.line([(0, y), (W, y)], fill=(r, g, b))
+
+    # ── ヘッダーバー ──
+    header_h = 130
+    draw.rectangle([(0, 0), (W, header_h)], fill=(255, 255, 255, 0))
+    overlay = Image.new("RGBA", (W, header_h), (255, 255, 255, 35))
+    img.paste(Image.new("RGB", (W, header_h),
+              (int(bg_top[0]*1.3), int(bg_top[1]*1.3), int(bg_top[2]*1.5))),
+              (0, 0))
+    # アクセントライン
+    draw.rectangle([(0, header_h - 4), (W, header_h)], fill=accent)
+    draw = ImageDraw.Draw(img)
+
+    # ── タグ ──
+    px = 52
+    py = 20
+    if tag_text:
+        tag_font = _get_font(12, bold=True)
+        draw.text((px, py), tag_text.upper(), font=tag_font, fill=accent)
+        py += 22
+
+    # ── タイトル ──
+    title_font = _get_font(44, bold=True)
+    draw.text((px, py), title_text, font=title_font, fill=(255, 255, 255))
+    py += 56
+
+    # ── サブタイトル ──
+    if subtitle_text:
+        sub_font = _get_font(18)
+        draw.text((px, py), subtitle_text, font=sub_font, fill=(200, 215, 235))
+
+    # ── カード（items） ──
+    if items:
+        n = len(items)
+        margin = 52
+        gap = 16
+        card_w = (W - margin * 2 - gap * (n - 1)) // n
+        card_y = header_h + 20
+        card_h = H - header_h - 20 - (52 if note_text else 10)
+
+        for i, item in enumerate(items):
+            cx = margin + i * (card_w + gap)
+            # カード背景
+            card_color = (255, 255, 255, 40)
+            card_img = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 35))
+            img.paste(Image.new("RGB", (card_w, card_h), (30, 45, 75)), (cx, card_y))
+            # アクセントトップボーダー
+            draw.rectangle([(cx, card_y), (cx + card_w, card_y + 4)], fill=accent)
+            draw = ImageDraw.Draw(img)
+
+            # アイコン
+            icon = item.get("icon", "📌")
+            icon_font = _get_font(32)
+            draw.text((cx + 18, card_y + 16), icon, font=icon_font, fill=(255, 255, 255))
+
+            # カードタイトル
+            ct_font = _get_font(17, bold=True)
+            ct_lines = _wrap_text(item.get("title", ""), ct_font, card_w - 36, draw)
+            cy = card_y + 60
+            for line in ct_lines[:2]:
+                draw.text((cx + 18, cy), line, font=ct_font, fill=(255, 255, 255))
+                cy += 24
+
+            # カード本文
+            cb_font = _get_font(13)
+            cb_lines = _wrap_text(item.get("body", ""), cb_font, card_w - 36, draw)
+            cy += 6
+            for line in cb_lines[:5]:
+                draw.text((cx + 18, cy), line, font=cb_font, fill=(185, 205, 230))
+                cy += 20
+
+    # ── フッターノート ──
+    if note_text:
+        draw.rectangle([(0, H - 42), (W, H)], fill=(10, 18, 40))
+        note_font = _get_font(13)
+        draw.text((52, H - 30), note_text, font=note_font, fill=(140, 160, 190))
+
+    return img.convert("RGB")
 
 
 def generate_slide_image(
@@ -421,13 +546,11 @@ def generate_slide_image(
     source_text: str = "",
     reference_images: list = None,
     brand_colors: list = None,
-    source_image: Image.Image = None,  # 後方互換のため残す（使用しない）
+    source_image: Image.Image = None,
     use_claude: bool = True,
 ) -> Image.Image:
     """
-    Claude でスライドコンテンツJSON（レイアウト・テキスト）を生成し、
-    グラスモーフィズムHTMLテンプレートで PNG にレンダリングする。
-    背景はグラデーション固定。
+    Claude でスライドコンテンツJSONを生成し、PILで直接描画する。
     """
     if not use_claude:
         return source_image
@@ -449,6 +572,4 @@ def generate_slide_image(
         if saturation(best_accent) > 0.3:
             data["accent"] = best_accent
 
-    data["image_b64"] = ""  # グラデーション背景固定
-    html = render_slide_from_json(data)
-    return render_html_to_image(html)
+    return render_slide_pil(data)
