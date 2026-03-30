@@ -403,20 +403,34 @@ def _hex_to_rgb(hex_color: str) -> tuple:
 def _get_font(size: int, bold: bool = False):
     """日本語対応フォントを取得（なければデフォルト）"""
     from PIL import ImageFont
-    candidates = [
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Bold.ttc" if bold else
-        "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
-        "/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc" if bold else
-        "/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else
-        "/System/Library/Fonts/Supplemental/Arial.ttf",
-    ]
+    import glob
+    candidates = []
+
+    # Linux (Streamlit Cloud) - Noto Sans CJK
+    candidates += glob.glob("/usr/share/fonts/**/Noto*CJK*Bold*.ttc", recursive=True)
+    candidates += glob.glob("/usr/share/fonts/**/Noto*CJK*.ttc", recursive=True)
+    candidates += glob.glob("/usr/share/fonts/**/NotoSans*.ttf", recursive=True)
+    # Linux - DejaVu（確実に存在）
+    if bold:
+        candidates += glob.glob("/usr/share/fonts/**/DejaVuSans-Bold.ttf", recursive=True)
+    candidates += glob.glob("/usr/share/fonts/**/DejaVuSans.ttf", recursive=True)
+    # macOS
+    if bold:
+        candidates += ["/System/Library/Fonts/ヒラギノ角ゴシック W6.ttc",
+                       "/System/Library/Fonts/Supplemental/Arial Bold.ttf"]
+    candidates += ["/System/Library/Fonts/ヒラギノ角ゴシック W3.ttc",
+                   "/System/Library/Fonts/Supplemental/Arial.ttf"]
+
     for path in candidates:
         try:
             return ImageFont.truetype(path, size)
         except Exception:
             continue
-    return ImageFont.load_default()
+    # フォールバック：load_default はサイズ指定できないので size を近似
+    try:
+        return ImageFont.load_default(size=size)
+    except Exception:
+        return ImageFont.load_default()
 
 
 def _wrap_text(text: str, font, max_width: int, draw) -> list[str]:
@@ -495,41 +509,42 @@ def render_slide_pil(data: dict) -> Image.Image:
     if items:
         n = len(items)
         margin = 52
-        gap = 16
+        gap = 14
         card_w = (W - margin * 2 - gap * (n - 1)) // n
-        card_y = header_h + 20
-        card_h = H - header_h - 20 - (52 if note_text else 10)
+        card_y = header_h + 18
+        card_h = H - header_h - 18 - (52 if note_text else 10)
+
+        ct_font = _get_font(16, bold=True)
+        cb_font = _get_font(13)
+        num_font = _get_font(18, bold=True)
 
         for i, item in enumerate(items):
             cx = margin + i * (card_w + gap)
-            # カード背景
-            card_color = (255, 255, 255, 40)
-            card_img = Image.new("RGBA", (card_w, card_h), (255, 255, 255, 35))
-            img.paste(Image.new("RGB", (card_w, card_h), (30, 45, 75)), (cx, card_y))
-            # アクセントトップボーダー
-            draw.rectangle([(cx, card_y), (cx + card_w, card_y + 4)], fill=accent)
+            # カード背景（明るめのネイビー）
+            img.paste(Image.new("RGB", (card_w, card_h), (38, 58, 95)), (cx, card_y))
             draw = ImageDraw.Draw(img)
-
-            # アイコン
-            icon = item.get("icon", "📌")
-            icon_font = _get_font(32)
-            draw.text((cx + 18, card_y + 16), icon, font=icon_font, fill=(255, 255, 255))
+            # アクセントトップボーダー
+            draw.rectangle([(cx, card_y), (cx + card_w, card_y + 5)], fill=accent)
+            # 番号バッジ（絵文字の代わり）
+            badge_r = 16
+            bx, by = cx + 22, card_y + 22
+            draw.ellipse([(bx, by), (bx + badge_r*2, by + badge_r*2)], fill=accent)
+            draw.text((bx + badge_r - 5, by + badge_r - 10), str(i + 1),
+                      font=num_font, fill=(255, 255, 255))
 
             # カードタイトル
-            ct_font = _get_font(17, bold=True)
-            ct_lines = _wrap_text(item.get("title", ""), ct_font, card_w - 36, draw)
+            ct_lines = _wrap_text(item.get("title", ""), ct_font, card_w - 28, draw)
             cy = card_y + 60
             for line in ct_lines[:2]:
-                draw.text((cx + 18, cy), line, font=ct_font, fill=(255, 255, 255))
-                cy += 24
+                draw.text((cx + 14, cy), line, font=ct_font, fill=(255, 255, 255))
+                cy += 22
 
             # カード本文
-            cb_font = _get_font(13)
-            cb_lines = _wrap_text(item.get("body", ""), cb_font, card_w - 36, draw)
-            cy += 6
-            for line in cb_lines[:5]:
-                draw.text((cx + 18, cy), line, font=cb_font, fill=(185, 205, 230))
-                cy += 20
+            cb_lines = _wrap_text(item.get("body", ""), cb_font, card_w - 28, draw)
+            cy += 4
+            for line in cb_lines[:6]:
+                draw.text((cx + 14, cy), line, font=cb_font, fill=(190, 210, 240))
+                cy += 19
 
     # ── フッターノート ──
     if note_text:

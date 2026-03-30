@@ -144,7 +144,7 @@ with st.sidebar:
     st.markdown("""
 1. 複数の資料（PDF/PPTX/画像）をアップロード
 2. WebページのURLを追加（任意）
-3. 「解析して台本を生成」を押す
+3. 「▶ スライド生成」を押す
 4. タイムラインで各スライドを確認・編集
 5. 「全スライドを動画化」でMP4完成
 6. スライドごとに再生成も可能
@@ -199,24 +199,23 @@ if st.session_state["url_list"]:
                 st.rerun()
 
 # ────────────────────────────────────────
-# STEP 1-2: 解析 → 台本生成（自動実行）
+# STEP 1-2: スライド生成ボタン → 解析 → 台本生成
 # ────────────────────────────────────────
 has_input = uploaded_files or st.session_state.get("url_list")
 
-# 入力の fingerprint（ファイル名セット + URLリスト）で変化を検知
-current_input_key = (
-    tuple(sorted(f.name for f in uploaded_files)) if uploaded_files else (),
-    tuple(st.session_state.get("url_list", [])),
+st.divider()
+run_pipeline = st.button(
+    "▶ スライド生成",
+    type="primary",
+    use_container_width=True,
+    disabled=not has_input,
 )
-last_input_key = st.session_state.get("last_input_key")
-input_changed = has_input and (current_input_key != last_input_key)
 
-if input_changed:
+if run_pipeline:
     # セッションをリセット
     for key in ["scripts", "slide_clip_paths", "slide_tmp_dir", "final_video_path",
                 "editing_slide_idx", "heygen_paths"]:
         st.session_state.pop(key, None)
-    st.session_state["last_input_key"] = current_input_key
 
     # 一時ファイルに保存
     tmp_paths = []
