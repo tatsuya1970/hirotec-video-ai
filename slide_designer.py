@@ -611,13 +611,13 @@ def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
     img = bg.copy().resize((W, H), Image.LANCZOS)
 
     # ダークオーバーレイ（薄めにして背景を見せる）
-    overlay = Image.new("RGBA", (W, H), (5, 10, 25, 100))
+    overlay = Image.new("RGBA", (W, H), (5, 10, 25, 55))
     img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
     draw = ImageDraw.Draw(img)
 
     # ── ヘッダーエリア（半透明バー） ──
     header_h = 130
-    bar = Image.new("RGBA", (W, header_h), (10, 20, 50, 140))
+    bar = Image.new("RGBA", (W, header_h), (10, 20, 50, 100))
     img.paste(Image.new("RGB", (W, header_h), (10, 20, 50)),
               (0, 0), bar.split()[3])
     draw = ImageDraw.Draw(img)
@@ -645,7 +645,7 @@ def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
         for i, item in enumerate(items):
             cx = margin + i * (card_w + gap)
             # 半透明カード背景（薄めにして背景を透かす）
-            card_bg = Image.new("RGBA", (card_w, card_h), (20, 35, 65, 120))
+            card_bg = Image.new("RGBA", (card_w, card_h), (20, 35, 65, 75))
             img.paste(Image.new("RGB", (card_w, card_h), (20, 35, 65)),
                       (cx, card_y), card_bg.split()[3])
             draw = ImageDraw.Draw(img)
