@@ -555,6 +555,128 @@ def render_slide_pil(data: dict) -> Image.Image:
     return img.convert("RGB")
 
 
+def _generate_gemini_background(title: str, narration: str) -> Image.Image | None:
+    """
+    Gemini でスライド背景画像（テキストなし）を生成する。
+    失敗時は None を返す。
+    """
+    api_key = os.getenv("GEMINI_API_KEY", "")
+    if not api_key:
+        return None
+    try:
+        from google import genai
+        from google.genai import types as gtypes
+
+        client = genai.Client(api_key=api_key)
+        narration_short = narration[:120].replace("\n", " ")
+        prompt = (
+            f"A dramatic, high-impact cinematic photograph for a Japanese manufacturing company training slide. "
+            f"Theme: '{title}'. Context: {narration_short}. "
+            f"Style: ultra-realistic photo, dramatic moody lighting, industrial/manufacturing setting, "
+            f"wide cinematic 16:9 composition. "
+            f"CRITICAL: absolutely NO text, NO letters, NO words anywhere in the image."
+        )
+        response = client.models.generate_content(
+            model="gemini-2.0-flash-preview-image-generation",
+            contents=prompt,
+            config=gtypes.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+            ),
+        )
+        for part in response.candidates[0].content.parts:
+            if hasattr(part, "inline_data") and part.inline_data:
+                img = Image.open(io.BytesIO(part.inline_data.data)).convert("RGB")
+                return img.resize((SLIDE_W, SLIDE_H), Image.LANCZOS)
+    except Exception:
+        pass
+    return None
+
+
+def _overlay_text_on_bg(bg: Image.Image, data: dict) -> Image.Image:
+    """
+    背景画像の上にダークオーバーレイ＋PILでテキストを描画する。
+    """
+    from PIL import ImageDraw, ImageFilter
+    import numpy as np
+
+    W, H = SLIDE_W, SLIDE_H
+    accent_hex = data.get("accent", "#1e5cb3")
+    accent = _hex_to_rgb(accent_hex)
+    title_text = data.get("title", "")
+    subtitle_text = data.get("subtitle", "")
+    items = data.get("items", [])
+    note_text = data.get("note", "")
+
+    # 背景をリサイズ
+    img = bg.copy().resize((W, H), Image.LANCZOS)
+
+    # ダークオーバーレイ
+    overlay = Image.new("RGBA", (W, H), (5, 10, 25, 175))
+    img = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    # ── ヘッダーエリア（半透明バー） ──
+    header_h = 130
+    bar = Image.new("RGBA", (W, header_h), (10, 20, 50, 180))
+    img.paste(Image.new("RGB", (W, header_h), (10, 20, 50)),
+              (0, 0), bar.split()[3])
+    draw = ImageDraw.Draw(img)
+    draw.rectangle([(0, header_h - 4), (W, header_h)], fill=accent)
+
+    # タイトル
+    px, py = 52, 30
+    title_font = _get_font(44, bold=True)
+    draw.text((px, py), title_text, font=title_font, fill=(255, 255, 255))
+    if subtitle_text:
+        sub_font = _get_font(18)
+        draw.text((px, py + 54), subtitle_text, font=sub_font, fill=(200, 220, 255))
+
+    # ── カード ──
+    if items:
+        n = len(items)
+        margin, gap = 52, 14
+        card_w = (W - margin * 2 - gap * (n - 1)) // n
+        card_y = header_h + 18
+        card_h = H - header_h - 18 - (52 if note_text else 10)
+        ct_font = _get_font(16, bold=True)
+        cb_font = _get_font(13)
+        num_font = _get_font(18, bold=True)
+
+        for i, item in enumerate(items):
+            cx = margin + i * (card_w + gap)
+            # 半透明カード背景
+            card_bg = Image.new("RGBA", (card_w, card_h), (20, 35, 65, 190))
+            img.paste(Image.new("RGB", (card_w, card_h), (20, 35, 65)),
+                      (cx, card_y), card_bg.split()[3])
+            draw = ImageDraw.Draw(img)
+            draw.rectangle([(cx, card_y), (cx + card_w, card_y + 5)], fill=accent)
+
+            # 番号バッジ
+            badge_r = 16
+            bx, by = cx + 22, card_y + 22
+            draw.ellipse([(bx, by), (bx + badge_r*2, by + badge_r*2)], fill=accent)
+            draw.text((bx + badge_r - 5, by + badge_r - 10), str(i + 1),
+                      font=num_font, fill=(255, 255, 255))
+
+            ct_lines = _wrap_text(item.get("title", ""), ct_font, card_w - 28, draw)
+            cy = card_y + 60
+            for line in ct_lines[:2]:
+                draw.text((cx + 14, cy), line, font=ct_font, fill=(255, 255, 255))
+                cy += 22
+            cb_lines = _wrap_text(item.get("body", ""), cb_font, card_w - 28, draw)
+            cy += 4
+            for line in cb_lines[:6]:
+                draw.text((cx + 14, cy), line, font=cb_font, fill=(190, 215, 250))
+                cy += 19
+
+    if note_text:
+        draw.rectangle([(0, H - 42), (W, H)], fill=(5, 10, 25))
+        note_font = _get_font(13)
+        draw.text((52, H - 30), note_text, font=note_font, fill=(140, 160, 190))
+
+    return img.convert("RGB")
+
+
 def generate_slide_image(
     title: str,
     narration: str,
@@ -563,9 +685,11 @@ def generate_slide_image(
     brand_colors: list = None,
     source_image: Image.Image = None,
     use_claude: bool = True,
+    mode: str = "claude",  # "claude" | "gemini"
 ) -> Image.Image:
     """
-    Claude でスライドコンテンツJSONを生成し、PILで直接描画する。
+    mode="claude" : Claude でJSON生成 → PIL描画（グラデーション背景）
+    mode="gemini" : Claude でJSON生成 → Gemini で背景画像生成 → PIL でテキスト上書き
     """
     if not use_claude:
         return source_image
@@ -586,5 +710,11 @@ def generate_slide_image(
         best_accent = max(brand_colors[:4], key=saturation)
         if saturation(best_accent) > 0.3:
             data["accent"] = best_accent
+
+    if mode == "gemini":
+        bg = _generate_gemini_background(title, narration)
+        if bg:
+            return _overlay_text_on_bg(bg, data)
+        # Gemini失敗時はPILにフォールバック
 
     return render_slide_pil(data)

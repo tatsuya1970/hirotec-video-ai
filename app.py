@@ -118,11 +118,27 @@ with st.sidebar:
 
     st.divider()
 
+    # スライド画像生成モード
+    gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
+    slide_mode_options = ["Claude（グラデーション背景）"]
+    if gemini_ok:
+        slide_mode_options.append("Gemini + PIL（AI背景画像）")
+    slide_mode_label = st.selectbox(
+        "スライド画像生成モード",
+        slide_mode_options,
+        index=0,
+        help="GeminiモードはGEMINI_API_KEYが必要です"
+    )
+    slide_mode = "gemini" if "Gemini" in slide_mode_label else "claude"
+
+    st.divider()
+
     # APIキー状態
     openai_ok = bool(os.getenv("OPENAI_API_KEY"))
     st.markdown("**APIキー状態**")
     st.caption(f"{'✅' if openai_ok else '❌'} OpenAI（台本・音声）")
     st.caption(f"{'✅' if anthropic_ok else '❌'} Anthropic Claude（スライド生成）")
+    st.caption(f"{'✅' if gemini_ok else '❌'} Gemini（AI背景画像）")
 
     # 抽出済みブランドカラー表示
     design_ctx = st.session_state.get("design_context")
@@ -289,6 +305,7 @@ if run_pipeline:
                     ref_imgs, brand_colors,
                     source_image=s.get("image"),
                     use_claude=True,
+                    mode=slide_mode,
                 )
                 scripts[i]["image"] = new_img
             except Exception as e:
@@ -375,7 +392,8 @@ if "scripts" in st.session_state:
         # ────────────────────────────────────────
         action_col1, action_col2, action_col3 = st.columns(3)
         with action_col1:
-            if st.button("🎨 全スライドの画像をClaudeで再生成", use_container_width=True, key="btn_gen_all_images"):
+            regen_label = "🎨 全スライドの画像を再生成（Gemini + PIL）" if slide_mode == "gemini" else "🎨 全スライドの画像を再生成（Claude）"
+            if st.button(regen_label, use_container_width=True, key="btn_gen_all_images"):
                 design_ctx = st.session_state.get("design_context", {})
                 ref_imgs = design_ctx.get("reference_images", [])
                 brand_colors = design_ctx.get("brand_colors", [])
@@ -389,6 +407,7 @@ if "scripts" in st.session_state:
                             title, s["narration"], s.get("text", ""), ref_imgs, brand_colors,
                             source_image=s.get("image"),
                             use_claude=True,
+                            mode=slide_mode,
                         )
                     except Exception as e:
                         errors.append(f"スライド {i+1}: {e}")
