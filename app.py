@@ -306,7 +306,7 @@ has_input = uploaded_files or st.session_state.get("url_list")
 is_generating = st.session_state.get("is_generating", False)
 
 st.divider()
-st.caption(f"💴 本日の残り予算：**¥{budget_remaining:.0f} / ¥{DAILY_BUDGET_JPY}**（JST 深夜0時にリセット）")
+st.caption(f"💴 本日の残り予算：**{budget_remaining:.0f} / {DAILY_BUDGET_JPY}**（JST 深夜0時にリセット）")
 run_pipeline = st.button(
     "⏳ 生成中..." if is_generating else "▶ スライド生成",
     type="primary",
