@@ -316,8 +316,13 @@ run_pipeline = st.button(
 if budget_remaining <= 0:
     st.warning("本日の利用料金上限（¥500）に達しました。明日 JST 0:00 以降に再度お試しください。")
 
+# クリック直後に即座にボタンを無効化してから処理を開始
 if run_pipeline:
     st.session_state["is_generating"] = True
+    st.session_state["pipeline_triggered"] = True
+    st.rerun()
+
+if st.session_state.pop("pipeline_triggered", False):
     # セッションをリセット
     for key in ["scripts", "slide_clip_paths", "slide_tmp_dir", "final_video_path",
                 "editing_slide_idx", "heygen_paths"]:
