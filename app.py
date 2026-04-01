@@ -5,6 +5,7 @@ Streamlit メインアプリ
 """
 
 import os
+import json
 import tempfile
 from datetime import datetime, timezone, timedelta
 import streamlit as st
@@ -254,26 +255,46 @@ if st.session_state["url_list"]:
                 st.rerun()
 
 # ────────────────────────────────────────
+# 1日スライド枚数制限（100枚／日、JST深夜0時リセット）
+# ────────────────────────────────────────
+DAILY_SLIDE_LIMIT = 100
+USAGE_FILE = os.path.join(os.path.dirname(__file__), "usage.json")
+JST = timezone(timedelta(hours=9))
+
+def _load_usage() -> dict:
+    today = datetime.now(JST).strftime("%Y-%m-%d")
+    if os.path.exists(USAGE_FILE):
+        try:
+            data = json.loads(open(USAGE_FILE).read())
+            if data.get("date") == today:
+                return data
+        except Exception:
+            pass
+    return {"date": today, "slides": 0}
+
+def _save_usage(data: dict):
+    with open(USAGE_FILE, "w") as f:
+        json.dump(data, f)
+
+usage = _load_usage()
+slides_used = usage["slides"]
+slides_remaining = max(0, DAILY_SLIDE_LIMIT - slides_used)
+
+# ────────────────────────────────────────
 # STEP 1-2: スライド生成ボタン → 解析 → 台本生成
 # ────────────────────────────────────────
 has_input = uploaded_files or st.session_state.get("url_list")
 
-JST = timezone(timedelta(hours=9))
-_now = datetime.now(JST)
-_is_weekday = _now.weekday() < 5  # 0=月 〜 4=金
-_is_in_hours = 9 <= _now.hour < 20
-is_available = _is_weekday and _is_in_hours
-
 st.divider()
-st.caption("🕘 スライド生成は平日 9:00〜20:00（日本時間）のみご利用いただけます")
+st.caption(f"📊 本日の残りスライド生成枚数：**{slides_remaining} / {DAILY_SLIDE_LIMIT} 枚**（JST 深夜0時にリセット）")
 run_pipeline = st.button(
     "▶ スライド生成",
     type="primary",
     use_container_width=True,
-    disabled=not has_input or not is_available,
+    disabled=not has_input or slides_remaining == 0,
 )
-if not is_available:
-    st.warning(f"現在時刻 {_now.strftime('%Y-%m-%d %H:%M')} JST はご利用時間外です。平日 9:00〜20:00 にお試しください。")
+if slides_remaining == 0:
+    st.warning("本日の生成枚数上限（100枚）に達しました。明日 JST 0:00 以降に再度お試しください。")
 
 if run_pipeline:
     # セッションをリセット
@@ -334,6 +355,10 @@ if run_pipeline:
             state="complete"
         )
     st.success(f"✅ {len(scripts)} スライドの台本を生成しました")
+
+    # 枚数カウンターを更新
+    usage["slides"] = slides_used + len(scripts)
+    _save_usage(usage)
 
     can_generate = (slide_mode == "claude" and anthropic_ok) or (slide_mode == "gemini" and gemini_ok)
     if can_generate:
