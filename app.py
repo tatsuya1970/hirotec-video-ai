@@ -118,29 +118,11 @@ with st.sidebar:
     )
     voice = VOICE_OPTIONS[voice_label]
 
-    st.divider()
-
-    # スライド画像生成モード（デバッグモード時のみ表示）
+    # デバッグモード初期化
     gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
+    openai_ok = bool(os.getenv("OPENAI_API_KEY"))
     if "debug_mode" not in st.session_state:
         st.session_state["debug_mode"] = False
-
-    if st.session_state["debug_mode"]:
-        slide_mode_options = ["Imagen 4.0 + PIL（AI背景画像）", "Claude（グラデーション背景）"] if gemini_ok else ["Claude（グラデーション背景）"]
-        slide_mode_label = st.selectbox(
-            "スライド画像生成モード",
-            slide_mode_options,
-            index=0,
-            help="GeminiモードはGEMINI_API_KEYが必要です"
-        )
-        slide_mode = "gemini" if "Imagen" in slide_mode_label else "claude"
-    else:
-        slide_mode = "gemini" if gemini_ok else "claude"
-
-    st.divider()
-
-    # APIキー状態
-    openai_ok = bool(os.getenv("OPENAI_API_KEY"))
 
     # 抽出済みブランドカラー表示
     design_ctx = st.session_state.get("design_context")
@@ -157,12 +139,23 @@ with st.sidebar:
                 )
                 st.caption(hex_color)
 
-    # デバッグモード
     st.divider()
+
+    # デバッグモード
     if st.session_state["debug_mode"]:
         if st.button("🔓 デバッグモード ON（クリックで解除）", use_container_width=True):
             st.session_state["debug_mode"] = False
             st.rerun()
+
+        # スライド画像生成モード選択
+        slide_mode_options = ["Imagen 4.0 + PIL（AI背景画像）", "Claude（グラデーション背景）"] if gemini_ok else ["Claude（グラデーション背景）"]
+        slide_mode_label = st.selectbox(
+            "スライド画像生成モード",
+            slide_mode_options,
+            index=0,
+            help="GeminiモードはGEMINI_API_KEYが必要です"
+        )
+        slide_mode = "gemini" if "Imagen" in slide_mode_label else "claude"
 
         # デバッグ専用ツール
         if gemini_ok and st.button("🔬 Geminiモデル一覧", use_container_width=True):
@@ -185,6 +178,7 @@ with st.sidebar:
             else:
                 st.error(f"❌ Geminiエラー:\n{test_err}")
     else:
+        slide_mode = "gemini" if gemini_ok else "claude"
         with st.expander("🔧 デバッグモード"):
             debug_pw = st.text_input("パスワード", type="password", key="debug_pw_input")
             if st.button("ログイン", use_container_width=True):
