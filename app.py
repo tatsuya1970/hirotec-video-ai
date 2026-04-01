@@ -120,9 +120,7 @@ with st.sidebar:
 
     # スライド画像生成モード
     gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
-    slide_mode_options = ["Claude（グラデーション背景）"]
-    if gemini_ok:
-        slide_mode_options.append("Imagen 4.0 + PIL（AI背景画像）")
+    slide_mode_options = ["Imagen 4.0 + PIL（AI背景画像）", "Claude（グラデーション背景）"] if gemini_ok else ["Claude（グラデーション背景）"]
     slide_mode_label = st.selectbox(
         "スライド画像生成モード",
         slide_mode_options,
@@ -155,26 +153,45 @@ with st.sidebar:
                 )
                 st.caption(hex_color)
 
-    # Gemini接続テスト
-    if gemini_ok and st.button("🔬 Geminiモデル一覧", use_container_width=True):
-        import os as _os
-        try:
-            from google import genai as _genai
-            _client = _genai.Client(api_key=_os.getenv("GEMINI_API_KEY"))
-            models = [m.name for m in _client.models.list() if "generat" in m.name.lower()]
-            st.caption("\n".join(models[:20]))
-        except Exception as e:
-            st.error(str(e))
+    # デバッグモード
+    st.divider()
+    if "debug_mode" not in st.session_state:
+        st.session_state["debug_mode"] = False
 
-    if gemini_ok and st.button("🔬 Gemini接続テスト", use_container_width=True):
-        with st.spinner("Gemini APIをテスト中..."):
-            from slide_designer import _generate_gemini_background
-            test_img, test_err = _generate_gemini_background("テスト", "製造業の研修スライドです")
-        if test_img:
-            st.success("✅ Gemini画像生成成功！")
-            st.image(test_img, use_container_width=True)
-        else:
-            st.error(f"❌ Geminiエラー:\n{test_err}")
+    if st.session_state["debug_mode"]:
+        if st.button("🔓 デバッグモード ON（クリックで解除）", use_container_width=True):
+            st.session_state["debug_mode"] = False
+            st.rerun()
+
+        # デバッグ専用ツール
+        if gemini_ok and st.button("🔬 Geminiモデル一覧", use_container_width=True):
+            import os as _os
+            try:
+                from google import genai as _genai
+                _client = _genai.Client(api_key=_os.getenv("GEMINI_API_KEY"))
+                models = [m.name for m in _client.models.list() if "generat" in m.name.lower()]
+                st.caption("\n".join(models[:20]))
+            except Exception as e:
+                st.error(str(e))
+
+        if gemini_ok and st.button("🔬 Gemini接続テスト", use_container_width=True):
+            with st.spinner("Gemini APIをテスト中..."):
+                from slide_designer import _generate_gemini_background
+                test_img, test_err = _generate_gemini_background("テスト", "製造業の研修スライドです")
+            if test_img:
+                st.success("✅ Gemini画像生成成功！")
+                st.image(test_img, use_container_width=True)
+            else:
+                st.error(f"❌ Geminiエラー:\n{test_err}")
+    else:
+        with st.expander("🔧 デバッグモード"):
+            debug_pw = st.text_input("パスワード", type="password", key="debug_pw_input")
+            if st.button("ログイン", use_container_width=True):
+                if debug_pw == os.getenv("DEBUG_PASSWORD", "debug"):
+                    st.session_state["debug_mode"] = True
+                    st.rerun()
+                else:
+                    st.error("パスワードが違います")
 
     st.divider()
     st.markdown("**使い方**")
