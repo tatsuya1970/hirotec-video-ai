@@ -6,6 +6,7 @@ Streamlit メインアプリ
 
 import os
 import tempfile
+from datetime import datetime, timezone, timedelta
 import streamlit as st
 from dotenv import load_dotenv
 
@@ -257,13 +258,22 @@ if st.session_state["url_list"]:
 # ────────────────────────────────────────
 has_input = uploaded_files or st.session_state.get("url_list")
 
+JST = timezone(timedelta(hours=9))
+_now = datetime.now(JST)
+_is_weekday = _now.weekday() < 5  # 0=月 〜 4=金
+_is_in_hours = 9 <= _now.hour < 20
+is_available = _is_weekday and _is_in_hours
+
 st.divider()
+st.caption("🕘 スライド生成は平日 9:00〜20:00（日本時間）のみご利用いただけます")
 run_pipeline = st.button(
     "▶ スライド生成",
     type="primary",
     use_container_width=True,
-    disabled=not has_input,
+    disabled=not has_input or not is_available,
 )
+if not is_available:
+    st.warning(f"現在時刻 {_now.strftime('%Y-%m-%d %H:%M')} JST はご利用時間外です。平日 9:00〜20:00 にお試しください。")
 
 if run_pipeline:
     # セッションをリセット
