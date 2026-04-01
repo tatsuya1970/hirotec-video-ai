@@ -120,16 +120,22 @@ with st.sidebar:
 
     st.divider()
 
-    # スライド画像生成モード
+    # スライド画像生成モード（デバッグモード時のみ表示）
     gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
-    slide_mode_options = ["Imagen 4.0 + PIL（AI背景画像）", "Claude（グラデーション背景）"] if gemini_ok else ["Claude（グラデーション背景）"]
-    slide_mode_label = st.selectbox(
-        "スライド画像生成モード",
-        slide_mode_options,
-        index=0,
-        help="GeminiモードはGEMINI_API_KEYが必要です"
-    )
-    slide_mode = "gemini" if "Imagen" in slide_mode_label else "claude"
+    if "debug_mode" not in st.session_state:
+        st.session_state["debug_mode"] = False
+
+    if st.session_state["debug_mode"]:
+        slide_mode_options = ["Imagen 4.0 + PIL（AI背景画像）", "Claude（グラデーション背景）"] if gemini_ok else ["Claude（グラデーション背景）"]
+        slide_mode_label = st.selectbox(
+            "スライド画像生成モード",
+            slide_mode_options,
+            index=0,
+            help="GeminiモードはGEMINI_API_KEYが必要です"
+        )
+        slide_mode = "gemini" if "Imagen" in slide_mode_label else "claude"
+    else:
+        slide_mode = "gemini" if gemini_ok else "claude"
 
     st.divider()
 
@@ -157,9 +163,6 @@ with st.sidebar:
 
     # デバッグモード
     st.divider()
-    if "debug_mode" not in st.session_state:
-        st.session_state["debug_mode"] = False
-
     if st.session_state["debug_mode"]:
         if st.button("🔓 デバッグモード ON（クリックで解除）", use_container_width=True):
             st.session_state["debug_mode"] = False
