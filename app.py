@@ -479,7 +479,7 @@ if "scripts" in st.session_state:
                     unsafe_allow_html=True
                 )
 
-    tab_editor, tab_heygen = st.tabs(["🎬 タイムライン エディター", "🧑‍💼 HeyGen アバター版"])
+    tab_editor, tab_heygen = st.tabs(["🎬 タイムライン エディター", "🧑‍💼 アバター（制作中）"])
 
     # ════════════════════════════════════════
     # タイムライン エディター タブ
