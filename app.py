@@ -265,15 +265,13 @@ _JPY_PER_USD = 150
 _COST_GPT4O_FIXED_JPY = round(_JPY_PER_USD * (2.50 / 1_000_000 * 2_500), 2)   # 入力固定分 ≈ ¥0.94
 _COST_PER_SLIDE_IMAGEN_JPY = round(_JPY_PER_USD * (
     10 / 1_000_000 * 200 +   # GPT-4o出力
-    0.030 / 1_000 * 250 +    # TTS
-    0.02                     # Imagen
-), 2)  # ≈ ¥4.5/枚
+    0.02                     # Imagen（TTSは動画化時に別途計上）
+), 2)  # ≈ ¥3.3/枚
 _COST_PER_SLIDE_CLAUDE_JPY = round(_JPY_PER_USD * (
     10 / 1_000_000 * 200 +   # GPT-4o出力
-    0.030 / 1_000 * 250 +    # TTS
     3 / 1_000_000 * 800 +    # Claude入力
-    15 / 1_000_000 * 300     # Claude出力
-), 2)  # ≈ ¥2.5/枚
+    15 / 1_000_000 * 300     # Claude出力（TTS は動画化時に別途計上）
+), 2)  # ≈ ¥1.4/枚
 
 def _estimate_cost_jpy(num_slides: int, mode: str) -> float:
     per_slide = _COST_PER_SLIDE_IMAGEN_JPY if mode == "gemini" else _COST_PER_SLIDE_CLAUDE_JPY
@@ -539,6 +537,13 @@ if "scripts" in st.session_state:
                         merge_clips(new_clip_paths, final_path)
                     st.session_state["final_video_path"] = final_path
                     st.success("✅ 動画が完成しました！")
+                    # TTS料金を累計に加算（¥1.1/スライド）
+                    _JPY_PER_CHAR = 150 * 0.030 / 1_000
+                    tts_cost = round(sum(len(s.get("narration", "")) * _JPY_PER_CHAR for s in scripts), 1)
+                    _u = _load_usage()
+                    _u["cost_jpy"] = round(_u["cost_jpy"] + tts_cost, 1)
+                    _save_usage(_u)
+                    st.caption(f"音声合成（TTS）推定料金：約 ¥{tts_cost:.1f}　本日累計：¥{_u['cost_jpy']:.1f} / ¥{DAILY_BUDGET_JPY}")
                 else:
                     st.warning("一部のスライドの生成に失敗しました。")
                 st.rerun()
