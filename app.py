@@ -250,11 +250,34 @@ if st.session_state["url_list"]:
                 st.rerun()
 
 # ────────────────────────────────────────
-# 1日スライド枚数制限（100枚／日、JST深夜0時リセット）
+# 1日API料金制限（¥500／日、JST深夜0時リセット）
 # ────────────────────────────────────────
-DAILY_SLIDE_LIMIT = 100
+DAILY_BUDGET_JPY = 500
 USAGE_FILE = os.path.join(os.path.dirname(__file__), "usage.json")
 JST = timezone(timedelta(hours=9))
+
+# 料金単価（¥150/$換算）
+# GPT-4o: $2.50/1M input, $10/1M output
+# TTS tts-1-hd: $0.030/1K文字
+# Claude Sonnet 4.6: $3/1M input, $15/1M output
+# Imagen 4.0 fast: $0.02/枚
+_JPY_PER_USD = 150
+_COST_GPT4O_FIXED_JPY = round(_JPY_PER_USD * (2.50 / 1_000_000 * 2_500), 2)   # 入力固定分 ≈ ¥0.94
+_COST_PER_SLIDE_IMAGEN_JPY = round(_JPY_PER_USD * (
+    10 / 1_000_000 * 200 +   # GPT-4o出力
+    0.030 / 1_000 * 250 +    # TTS
+    0.02                     # Imagen
+), 2)  # ≈ ¥4.5/枚
+_COST_PER_SLIDE_CLAUDE_JPY = round(_JPY_PER_USD * (
+    10 / 1_000_000 * 200 +   # GPT-4o出力
+    0.030 / 1_000 * 250 +    # TTS
+    3 / 1_000_000 * 800 +    # Claude入力
+    15 / 1_000_000 * 300     # Claude出力
+), 2)  # ≈ ¥2.5/枚
+
+def _estimate_cost_jpy(num_slides: int, mode: str) -> float:
+    per_slide = _COST_PER_SLIDE_IMAGEN_JPY if mode == "gemini" else _COST_PER_SLIDE_CLAUDE_JPY
+    return round(_COST_GPT4O_FIXED_JPY + per_slide * num_slides, 1)
 
 def _load_usage() -> dict:
     today = datetime.now(JST).strftime("%Y-%m-%d")
@@ -265,15 +288,15 @@ def _load_usage() -> dict:
                 return data
         except Exception:
             pass
-    return {"date": today, "slides": 0}
+    return {"date": today, "cost_jpy": 0.0}
 
 def _save_usage(data: dict):
     with open(USAGE_FILE, "w") as f:
         json.dump(data, f)
 
 usage = _load_usage()
-slides_used = usage["slides"]
-slides_remaining = max(0, DAILY_SLIDE_LIMIT - slides_used)
+cost_used = usage["cost_jpy"]
+budget_remaining = max(0.0, DAILY_BUDGET_JPY - cost_used)
 
 # ────────────────────────────────────────
 # STEP 1-2: スライド生成ボタン → 解析 → 台本生成
@@ -282,15 +305,15 @@ has_input = uploaded_files or st.session_state.get("url_list")
 is_generating = st.session_state.get("is_generating", False)
 
 st.divider()
-st.caption(f"📊 本日の残りスライド生成枚数：**{slides_remaining} / {DAILY_SLIDE_LIMIT} 枚**（JST 深夜0時にリセット）")
+st.caption(f"💴 本日の残り予算：**¥{budget_remaining:.0f} / ¥{DAILY_BUDGET_JPY}**（JST 深夜0時にリセット）")
 run_pipeline = st.button(
     "⏳ 生成中..." if is_generating else "▶ スライド生成",
     type="primary",
     use_container_width=True,
-    disabled=not has_input or slides_remaining == 0 or is_generating,
+    disabled=not has_input or budget_remaining <= 0 or is_generating,
 )
-if slides_remaining == 0:
-    st.warning("本日の生成枚数上限（100枚）に達しました。明日 JST 0:00 以降に再度お試しください。")
+if budget_remaining <= 0:
+    st.warning("本日の利用料金上限（¥500）に達しました。明日 JST 0:00 以降に再度お試しください。")
 
 if run_pipeline:
     st.session_state["is_generating"] = True
@@ -353,9 +376,11 @@ if run_pipeline:
         )
     st.success(f"✅ {len(scripts)} スライドの台本を生成しました")
 
-    # 枚数カウンターを更新
-    usage["slides"] = slides_used + len(scripts)
+    # 料金カウンターを更新
+    run_cost = _estimate_cost_jpy(len(scripts), slide_mode)
+    usage["cost_jpy"] = round(cost_used + run_cost, 1)
     _save_usage(usage)
+    st.caption(f"今回の推定料金：約 ¥{run_cost:.1f}　本日累計：¥{usage['cost_jpy']:.1f} / ¥{DAILY_BUDGET_JPY}")
 
     can_generate = (slide_mode == "claude" and anthropic_ok) or (slide_mode == "gemini" and gemini_ok)
     if can_generate:
