@@ -283,6 +283,9 @@ def _load_usage() -> dict:
         try:
             data = json.loads(open(USAGE_FILE).read())
             if data.get("date") == today:
+                # 旧フォーマット（slides キー）からの移行
+                if "cost_jpy" not in data:
+                    data["cost_jpy"] = 0.0
                 return data
         except Exception:
             pass
