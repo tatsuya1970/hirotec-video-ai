@@ -21,7 +21,7 @@ anthropic_ok = bool(os.getenv("ANTHROPIC_API_KEY"))
 
 # ページ設定
 st.set_page_config(
-    page_title="社内資料 → 動画教材 AI",
+    page_title="資料→動画教材AI",
     page_icon="📹",
     layout="wide"
 )
