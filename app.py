@@ -141,10 +141,6 @@ with st.sidebar:
 
     # APIキー状態
     openai_ok = bool(os.getenv("OPENAI_API_KEY"))
-    st.markdown("**APIキー状態**")
-    st.caption(f"{'✅' if openai_ok else '❌'} OpenAI（台本・音声）")
-    st.caption(f"{'✅' if anthropic_ok else '❌'} Anthropic Claude（スライド生成）")
-    st.caption(f"{'✅' if gemini_ok else '❌'} Gemini（AI背景画像）")
 
     # 抽出済みブランドカラー表示
     design_ctx = st.session_state.get("design_context")
