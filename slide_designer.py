@@ -568,13 +568,16 @@ def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image
         from google.genai import types as gtypes
 
         client = genai.Client(api_key=api_key)
+        narration_short = narration[:120].replace("\n", " ")
         prompt = (
-            f"A dramatic cinematic photograph of an industrial manufacturing facility. "
-            f"Empty factory floor with machinery, equipment, and production lines. "
-            f"Dark moody atmospheric lighting, wide 16:9 composition, professional industrial photography. "
-            f"Photo only — zero text, zero letters, zero words, zero numbers, zero signs, "
-            f"zero labels, zero symbols, zero watermarks, zero overlays anywhere in the image. "
-            f"Purely visual, no typography of any kind."
+            f"Cinematic background photograph for a corporate training slide. "
+            f"Slide topic: {title}. Content summary: {narration_short}. "
+            f"Visually depict the subject matter — show relevant equipment, tools, workers, or environment "
+            f"that matches the topic. "
+            f"Style: ultra-realistic professional photo, dramatic moody lighting, dark atmospheric tones, "
+            f"wide 16:9 cinematic composition, deep focus, high contrast. "
+            f"CRITICAL: The image must contain absolutely zero text, zero letters, zero words, zero numbers, "
+            f"zero signs, zero labels, zero symbols, zero watermarks anywhere. Pure photographic scene only."
         )
         response = client.models.generate_images(
             model="imagen-4.0-fast-generate-001",
