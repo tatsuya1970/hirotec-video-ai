@@ -109,6 +109,28 @@ st.divider()
 # サイドバー：設定
 # ────────────────────────────────────────
 with st.sidebar:
+    # デバッグモード初期化
+    gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
+    openai_ok = bool(os.getenv("OPENAI_API_KEY"))
+    if "debug_mode" not in st.session_state:
+        st.session_state["debug_mode"] = False
+
+    # デバッグモード（設定の上）
+    if st.session_state["debug_mode"]:
+        if st.button("🔓 デバッグモード ON（クリックで解除）", use_container_width=True):
+            st.session_state["debug_mode"] = False
+            st.rerun()
+    else:
+        with st.expander("🔧 デバッグモード"):
+            debug_pw = st.text_input("パスワード", type="password", key="debug_pw_input")
+            if st.button("ログイン", use_container_width=True):
+                if debug_pw == os.getenv("DEBUG_PASSWORD", "debug"):
+                    st.session_state["debug_mode"] = True
+                    st.rerun()
+                else:
+                    st.error("パスワードが違います")
+
+    st.divider()
     st.header("⚙️ 設定")
 
     voice_label = st.selectbox(
@@ -117,12 +139,6 @@ with st.sidebar:
         index=0
     )
     voice = VOICE_OPTIONS[voice_label]
-
-    # デバッグモード初期化
-    gemini_ok = bool(os.getenv("GEMINI_API_KEY"))
-    openai_ok = bool(os.getenv("OPENAI_API_KEY"))
-    if "debug_mode" not in st.session_state:
-        st.session_state["debug_mode"] = False
 
     # 抽出済みブランドカラー表示
     design_ctx = st.session_state.get("design_context")
@@ -139,15 +155,9 @@ with st.sidebar:
                 )
                 st.caption(hex_color)
 
-    st.divider()
-
-    # デバッグモード
+    # スライド画像生成モード選択（デバッグ時のみ）
     if st.session_state["debug_mode"]:
-        if st.button("🔓 デバッグモード ON（クリックで解除）", use_container_width=True):
-            st.session_state["debug_mode"] = False
-            st.rerun()
-
-        # スライド画像生成モード選択
+        st.divider()
         slide_mode_options = ["Imagen 4.0 + PIL（AI背景画像）", "Claude（グラデーション背景）"] if gemini_ok else ["Claude（グラデーション背景）"]
         slide_mode_label = st.selectbox(
             "スライド画像生成モード",
@@ -157,7 +167,7 @@ with st.sidebar:
         )
         slide_mode = "gemini" if "Imagen" in slide_mode_label else "claude"
 
-        # デバッグ専用ツール
+        st.divider()
         if gemini_ok and st.button("🔬 Geminiモデル一覧", use_container_width=True):
             import os as _os
             try:
@@ -179,14 +189,6 @@ with st.sidebar:
                 st.error(f"❌ Geminiエラー:\n{test_err}")
     else:
         slide_mode = "gemini" if gemini_ok else "claude"
-        with st.expander("🔧 デバッグモード"):
-            debug_pw = st.text_input("パスワード", type="password", key="debug_pw_input")
-            if st.button("ログイン", use_container_width=True):
-                if debug_pw == os.getenv("DEBUG_PASSWORD", "debug"):
-                    st.session_state["debug_mode"] = True
-                    st.rerun()
-                else:
-                    st.error("パスワードが違います")
 
     st.divider()
     st.markdown("**使い方**")
@@ -277,19 +279,21 @@ slides_remaining = max(0, DAILY_SLIDE_LIMIT - slides_used)
 # STEP 1-2: スライド生成ボタン → 解析 → 台本生成
 # ────────────────────────────────────────
 has_input = uploaded_files or st.session_state.get("url_list")
+is_generating = st.session_state.get("is_generating", False)
 
 st.divider()
 st.caption(f"📊 本日の残りスライド生成枚数：**{slides_remaining} / {DAILY_SLIDE_LIMIT} 枚**（JST 深夜0時にリセット）")
 run_pipeline = st.button(
-    "▶ スライド生成",
+    "⏳ 生成中..." if is_generating else "▶ スライド生成",
     type="primary",
     use_container_width=True,
-    disabled=not has_input or slides_remaining == 0,
+    disabled=not has_input or slides_remaining == 0 or is_generating,
 )
 if slides_remaining == 0:
     st.warning("本日の生成枚数上限（100枚）に達しました。明日 JST 0:00 以降に再度お試しください。")
 
 if run_pipeline:
+    st.session_state["is_generating"] = True
     # セッションをリセット
     for key in ["scripts", "slide_clip_paths", "slide_tmp_dir", "final_video_path",
                 "editing_slide_idx", "heygen_paths"]:
@@ -391,6 +395,7 @@ if run_pipeline:
     st.session_state["slide_tmp_dir"] = slide_tmp_dir
     st.session_state["scripts"] = scripts
     st.session_state["slide_clip_paths"] = [None] * len(scripts)
+    st.session_state["is_generating"] = False
 
 # ────────────────────────────────────────
 # メインエディター + 動画生成
