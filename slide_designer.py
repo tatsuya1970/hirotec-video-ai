@@ -15,6 +15,7 @@ import os
 import tempfile
 from dotenv import load_dotenv
 import anthropic
+from openai import OpenAI
 from PIL import Image
 
 load_dotenv()
@@ -555,6 +556,27 @@ def render_slide_pil(data: dict) -> Image.Image:
     return img.convert("RGB")
 
 
+def _to_english_scene(title: str, narration: str) -> str:
+    """GPT-4o miniでスライド内容を英語の視覚シーン描写に変換する（Imagenプロンプト用）"""
+    try:
+        oai = OpenAI()
+        resp = oai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": (
+                f"Convert this Japanese training slide topic into a concise English visual scene description "
+                f"(2-3 sentences) for an image generation prompt. "
+                f"Focus only on physical objects, environment, equipment, and actions to depict visually. "
+                f"Do NOT include any text, labels, or written elements in the description. "
+                f"Title: {title}. Summary: {narration[:200]}"
+            )}],
+            max_tokens=120,
+            temperature=0.3,
+        )
+        return resp.choices[0].message.content.strip()
+    except Exception:
+        return "Industrial manufacturing facility with heavy machinery and equipment."
+
+
 def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image | None, str]:
     """
     Imagen 4.0 でスライド背景画像（テキストなし）を生成する。
@@ -568,16 +590,13 @@ def _generate_gemini_background(title: str, narration: str) -> tuple[Image.Image
         from google.genai import types as gtypes
 
         client = genai.Client(api_key=api_key)
-        narration_short = narration[:120].replace("\n", " ")
+        scene = _to_english_scene(title, narration)
         prompt = (
-            f"Cinematic background photograph for a corporate training slide. "
-            f"Slide topic: {title}. Content summary: {narration_short}. "
-            f"Visually depict the subject matter — show relevant equipment, tools, workers, or environment "
-            f"that matches the topic. "
+            f"Cinematic background photograph: {scene} "
             f"Style: ultra-realistic professional photo, dramatic moody lighting, dark atmospheric tones, "
             f"wide 16:9 cinematic composition, deep focus, high contrast. "
-            f"CRITICAL: The image must contain absolutely zero text, zero letters, zero words, zero numbers, "
-            f"zero signs, zero labels, zero symbols, zero watermarks anywhere. Pure photographic scene only."
+            f"Pure photograph with absolutely no text, no letters, no words, no numbers, "
+            f"no signs, no labels, no watermarks, no overlays anywhere in the image."
         )
         response = client.models.generate_images(
             model="imagen-4.0-fast-generate-001",
